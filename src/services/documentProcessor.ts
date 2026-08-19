@@ -1,7 +1,6 @@
 import { cleanExtractedText, calculateTextMetrics } from '@/lib/validators';
 import type { DocumentMetadata, ExtractionMethod } from '@/types';
 import { createWorker } from 'tesseract.js';
-import { extractText as extractUnpdfText, getDocumentProxy } from 'unpdf';
 
 export interface DocumentProcessingResult {
   text: string;
@@ -9,19 +8,27 @@ export interface DocumentProcessingResult {
 }
 
 /**
- * Extracts text from a PDF buffer using unpdf.
+ * Extracts text from a PDF buffer using pdf-parse.
  */
 export async function extractTextFromPDF(
-  buffer: Uint8Array | ArrayBuffer,
+  buffer: Uint8Array | ArrayBuffer | Buffer,
   fileName: string,
   fileSize: number
 ): Promise<DocumentProcessingResult> {
   try {
-    const uint8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-    const pdfDoc = await getDocumentProxy(uint8);
-    const totalPages = pdfDoc.numPages;
+    const nodeBuffer = Buffer.isBuffer(buffer)
+      ? buffer
+      : buffer instanceof Uint8Array
+      ? Buffer.from(buffer)
+      : Buffer.from(new Uint8Array(buffer));
 
-    const { text: rawText } = await extractUnpdfText(uint8, { mergePages: true });
+    // Robust dynamic import for pdf-parse in Next.js Server Components / API
+    const pdfModule = await import('pdf-parse');
+    const pdfParse = (pdfModule as any).default || pdfModule;
+    const data = await pdfParse(nodeBuffer);
+
+    const rawText = data.text || '';
+    const totalPages = data.numpages || 1;
     const cleanedText = cleanExtractedText(rawText);
 
     let extractionMethod: ExtractionMethod = 'pdf-native';
