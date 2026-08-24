@@ -1,11 +1,27 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import Navbar from '@/components/Navbar';
+import LandingHero from '@/components/LandingHero';
 import FileUploadZone from '@/components/FileUploadZone';
 import ProcessingStatus from '@/components/ProcessingStatus';
-import SummaryResultView from '@/components/SummaryResultView';
-import ExtractedTextViewer from '@/components/ExtractedTextViewer';
-import type { DocumentMetadata, ProcessDocumentResponse, ProcessingStage, SummaryLength, SummaryResult } from '@/types';
+import DocumentWorkspace from '@/components/DocumentWorkspace';
+import RecentDocumentsModal from '@/components/RecentDocumentsModal';
+import {
+  getStoredHistory,
+  saveDocumentToHistory,
+  removeDocumentFromHistory,
+  clearAllHistory,
+} from '@/lib/historyStorage';
+import type { SampleDocument } from '@/lib/sampleDocuments';
+import type {
+  DocumentHistoryItem,
+  DocumentMetadata,
+  ProcessDocumentResponse,
+  ProcessingStage,
+  SummaryLength,
+  SummaryResult,
+} from '@/types';
 
 export default function HomePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -19,7 +35,15 @@ export default function HomePage() {
   const [extractedText, setExtractedText] = useState<string>('');
   const [isReSummarizing, setIsReSummarizing] = useState(false);
 
-  const handleProcess = async () => {
+  // History state
+  const [history, setHistory] = useState<DocumentHistoryItem[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  useEffect(() => {
+    setHistory(getStoredHistory());
+  }, []);
+
+  const handleProcessFile = async () => {
     if (!file) return;
 
     setStage('uploading');
@@ -30,18 +54,18 @@ export default function HomePage() {
     formData.append('length', summaryLength);
 
     try {
-      // Step simulation for pleasant visual progression
+      // Step progression
       setTimeout(() => {
         setStage((curr) => (curr === 'uploading' ? 'extracting' : curr));
-      }, 700);
+      }, 600);
 
       setTimeout(() => {
         setStage((curr) => (curr === 'extracting' ? 'analyzing' : curr));
-      }, 1800);
+      }, 1600);
 
       setTimeout(() => {
         setStage((curr) => (curr === 'analyzing' ? 'summarizing' : curr));
-      }, 2600);
+      }, 2400);
 
       const res = await fetch('/api/process-document', {
         method: 'POST',
@@ -54,13 +78,96 @@ export default function HomePage() {
         throw new Error(data.error || 'Failed to process document.');
       }
 
-      setSummaryResult(data.summaryResult || null);
-      setMetadata(data.metadata);
-      setExtractedText(data.extractedText || '');
+      const result = data.summaryResult || null;
+      const meta = data.metadata;
+      const text = data.extractedText || '';
+
+      setSummaryResult(result);
+      setMetadata(meta);
+      setExtractedText(text);
       setStage('completed');
+
+      // Save to local history
+      if (result && meta) {
+        const historyItem: DocumentHistoryItem = {
+          id: `doc-${Date.now()}`,
+          fileName: meta.fileName,
+          fileSize: meta.fileSize,
+          fileType: meta.fileType,
+          extractionMethod: meta.extractionMethod,
+          processedAt: meta.processedAt,
+          wordCount: meta.wordCount,
+          summaryResult: result,
+          extractedText: text,
+        };
+        saveDocumentToHistory(historyItem);
+        setHistory(getStoredHistory());
+      }
     } catch (err: any) {
       console.error(err);
       setErrorMessage(err.message || 'An unexpected error occurred during processing.');
+      setStage('error');
+    }
+  };
+
+  const handleSelectSampleDocument = async (sample: SampleDocument) => {
+    setStage('uploading');
+    setErrorMessage(null);
+    setFile(null);
+
+    try {
+      setTimeout(() => setStage('extracting'), 400);
+      setTimeout(() => setStage('analyzing'), 1000);
+      setTimeout(() => setStage('summarizing'), 1600);
+
+      const res = await fetch('/api/summarize-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: sample.text,
+          length: summaryLength,
+          fileName: sample.fileName,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to process sample document.');
+      }
+
+      const wordCount = sample.text.split(/\s+/).filter(Boolean).length;
+      const meta: DocumentMetadata = {
+        fileName: sample.fileName,
+        fileSize: sample.fileSize,
+        fileType: sample.fileType,
+        wordCount,
+        characterCount: sample.text.length,
+        extractionMethod: sample.extractionMethod,
+        processedAt: new Date().toISOString(),
+      };
+
+      setSummaryResult(data.summaryResult);
+      setMetadata(meta);
+      setExtractedText(sample.text);
+      setStage('completed');
+
+      // Save to history
+      const historyItem: DocumentHistoryItem = {
+        id: `sample-${Date.now()}`,
+        fileName: sample.fileName,
+        fileSize: sample.fileSize,
+        fileType: sample.fileType,
+        extractionMethod: sample.extractionMethod,
+        processedAt: meta.processedAt,
+        wordCount,
+        summaryResult: data.summaryResult,
+        extractedText: sample.text,
+      };
+      saveDocumentToHistory(historyItem);
+      setHistory(getStoredHistory());
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to load sample document.');
       setStage('error');
     }
   };
@@ -100,27 +207,76 @@ export default function HomePage() {
     setExtractedText('');
   };
 
+  const handleRestoreFromHistory = (item: DocumentHistoryItem) => {
+    setSummaryResult(item.summaryResult);
+    setMetadata({
+      fileName: item.fileName,
+      fileSize: item.fileSize,
+      fileType: item.fileType,
+      wordCount: item.wordCount,
+      characterCount: item.extractedText.length,
+      extractionMethod: item.extractionMethod,
+      processedAt: item.processedAt,
+    });
+    setExtractedText(item.extractedText);
+    setStage('completed');
+    setIsHistoryOpen(false);
+  };
+
+  const handleDeleteHistoryItem = (id: string) => {
+    const updated = removeDocumentFromHistory(id);
+    setHistory(updated);
+  };
+
+  const handleClearAllHistory = () => {
+    clearAllHistory();
+    setHistory([]);
+  };
+
   return (
     <div className="space-y-8">
-      {/* Upload Zone (Hidden when viewing completed result) */}
-      {!summaryResult && (
-        <FileUploadZone
-          selectedFile={file}
-          onFileSelect={setFile}
-          summaryLength={summaryLength}
-          onLengthChange={setSummaryLength}
-          onProcess={handleProcess}
-          isProcessing={stage !== 'idle' && stage !== 'completed' && stage !== 'error'}
+      {/* Dynamic Navigation */}
+      <Navbar
+        historyCount={history.length}
+        onOpenHistory={() => setIsHistoryOpen(true)}
+        onNewDocument={handleReset}
+        isWorkspaceActive={!!summaryResult}
+      />
+
+      {/* Main Container */}
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        {/* Landing Hero (Shown when no active document) */}
+        {!summaryResult && stage === 'idle' && (
+          <LandingHero
+            onSelectSample={handleSelectSampleDocument}
+            disabled={stage !== 'idle'}
+          />
+        )}
+
+        {/* Upload Zone (Shown when not viewing completed result) */}
+        {!summaryResult && (
+          <div className="mt-4">
+            <FileUploadZone
+              selectedFile={file}
+              onFileSelect={setFile}
+              summaryLength={summaryLength}
+              onLengthChange={setSummaryLength}
+              onProcess={handleProcessFile}
+              isProcessing={stage !== 'idle' && stage !== 'completed' && stage !== 'error'}
+            />
+          </div>
+        )}
+
+        {/* Multi-Stage Processing Pipeline */}
+        <ProcessingStatus
+          stage={stage}
+          error={errorMessage}
+          onRetry={file ? handleProcessFile : handleReset}
         />
-      )}
 
-      {/* Progress & Status Indicators */}
-      <ProcessingStatus stage={stage} error={errorMessage} />
-
-      {/* Results View */}
-      {summaryResult && (
-        <>
-          <SummaryResultView
+        {/* Document Intelligence Workspace */}
+        {summaryResult && (
+          <DocumentWorkspace
             summaryResult={summaryResult}
             metadata={metadata}
             extractedText={extractedText}
@@ -128,10 +284,18 @@ export default function HomePage() {
             isReSummarizing={isReSummarizing}
             onReset={handleReset}
           />
+        )}
+      </main>
 
-          <ExtractedTextViewer extractedText={extractedText} metadata={metadata} />
-        </>
-      )}
+      {/* Recent History Modal */}
+      <RecentDocumentsModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={history}
+        onSelectDocument={handleRestoreFromHistory}
+        onDeleteDocument={handleDeleteHistoryItem}
+        onClearAll={handleClearAllHistory}
+      />
     </div>
   );
 }

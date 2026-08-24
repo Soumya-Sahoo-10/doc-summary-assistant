@@ -22,11 +22,43 @@ export interface DocumentMetadata {
   processedAt: string;
 }
 
+export interface ActionItem {
+  id: string;
+  text: string;
+  category?: 'Urgent' | 'Follow-up' | 'Review' | 'General';
+  completed?: boolean;
+}
+
+export interface ImportantDate {
+  date: string;
+  description: string;
+}
+
+export interface ImportantNumber {
+  metric: string;
+  value: string;
+  context: string;
+}
+
+export interface KeyEntity {
+  name: string;
+  type: 'Organization' | 'Person' | 'Technology' | 'Location' | 'Concept';
+}
+
+export interface SmartInsights {
+  actionItems: ActionItem[];
+  importantDates: ImportantDate[];
+  importantNumbers: ImportantNumber[];
+  keyEntities: KeyEntity[];
+}
+
 export interface SummaryResult {
   summary: string;
   keyPoints: string[];
   mainIdeas: string[];
   improvementSuggestions?: string[];
+  smartInsights?: SmartInsights;
+  suggestedQuestions?: string[];
   estimatedReadTimeMinutes: number;
   requestedLength: SummaryLength;
   modelUsed: string;
@@ -45,4 +77,39 @@ export interface SummarizeTextRequest {
   text: string;
   length: SummaryLength;
   fileName?: string;
+}
+
+export interface QAMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: string[];
+  timestamp: string;
+}
+
+export interface AskDocumentRequest {
+  documentText: string;
+  question: string;
+  fileName?: string;
+  history?: { role: 'user' | 'assistant'; content: string }[];
+}
+
+export interface AskDocumentResponse {
+  success: boolean;
+  answer?: string;
+  sources?: string[];
+  suggestedFollowUps?: string[];
+  error?: string;
+}
+
+export interface DocumentHistoryItem {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  extractionMethod: ExtractionMethod;
+  processedAt: string;
+  wordCount: number;
+  summaryResult: SummaryResult;
+  extractedText: string;
 }

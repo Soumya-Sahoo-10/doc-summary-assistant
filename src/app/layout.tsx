@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Navbar from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: 'Document Summary Assistant | Smart PDF & Image Summarizer',
-  description: 'Upload PDF and image documents to extract text and generate smart AI-powered summaries with key points.',
+  title: 'DocSummary AI | Intelligent PDF & Scanned Document Assistant',
+  description: 'AI-powered document intelligence workspace that transforms PDFs and scanned documents into concise summaries, smart insights, and grounded answers.',
 };
 
 export default function RootLayout({
@@ -14,13 +13,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-slate-50 text-slate-900 min-h-screen flex flex-col antialiased">
-        <Navbar />
-        <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <body className="bg-slate-50/60 text-slate-900 min-h-screen flex flex-col antialiased selection:bg-indigo-100 selection:text-indigo-900">
+        <div className="flex-1 flex flex-col">
           {children}
-        </main>
-        <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-          <p>© 2026 Document Summary Assistant. Fast, reliable document processing & AI summarization.</p>
+        </div>
+        <footer className="border-t border-slate-200/80 bg-white/60 py-6 text-center text-xs text-slate-500 print:hidden">
+          <p>© 2026 DocSummary Assistant • Fast, reliable document processing, OCR & AI intelligence.</p>
         </footer>
       </body>
     </html>

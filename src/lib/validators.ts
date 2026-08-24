@@ -58,6 +58,7 @@ export function validateUploadedFile(file: File | { name: string; size: number; 
 export function sanitizeFileName(fileName: string): string {
   if (!fileName) return 'document';
   return fileName
+    .replace(/\.\./g, '')
     .replace(/[^a-zA-Z0-9._-]/g, '_')
     .replace(/_{2,}/g, '_')
     .slice(0, 100);

@@ -1,9 +1,9 @@
-# Approach Write-Up (Document Summary Assistant)
+# Approach Write-Up (DocSummary AI)
 
-The Document Summary Assistant is engineered using Next.js 15, TypeScript, and Tailwind CSS, prioritizing modular architecture, extraction fidelity, and an intuitive user experience.
+DocSummary AI is built with Next.js 15, TypeScript, and Tailwind CSS, delivering a modular, production-ready document intelligence workspace.
 
-Document ingestion employs a hybrid processing pipeline. Native PDFs are parsed using `unpdf`, preserving paragraph layout and structure without OS binary dependencies. Scanned documents and images (PNG, JPG, WEBP) are processed via `tesseract.js` OCR. Raw extracted text undergoes noise cleaning, character normalization, and reading metric estimation.
+Document ingestion uses a hybrid extraction pipeline. Native PDFs are parsed in-memory via `pdf-parse`, preserving paragraph hierarchies without native binary dependencies. Scanned documents and images (PNG, JPG, WEBP) are processed via `tesseract.js` OCR. Extracted text undergoes character normalization, noise removal, and reading metric estimation.
 
-For AI summarization, the system interfaces with Google Gemini via a dedicated service layer. To guarantee factual faithfulness and prevent hallucinations, strict prompt constraints and low temperature (0.2) enforce structured JSON outputs. Long documents exceeding token boundaries are divided into overlapping chunks and synthesized through a map-reduce summarization strategy. The system generates customizable Short, Medium, and Long summaries, bulleted Key Points, and Actionable Suggestions, with an extractive fallback mode for offline resilience.
+For AI intelligence, the platform interfaces with Google Gemini using structured prompt engineering with low temperature (0.1–0.2) to prevent hallucinations. For long documents, an overlapping map-reduce chunking strategy synthesizes intermediate sections. Beyond multi-length summaries (Short, Medium, Long), the system extracts Smart Insights (action items, key dates, financial metrics, recognized entities) and powers an interactive 'Ask This Document' Q&A engine with grounded source citations. An offline extractive fallback guarantees zero-crash resilience.
 
-The frontend delivers drag-and-drop uploads, real-time multi-stage progress indicators, instant length switching on extracted text, a raw text inspector, and one-click Markdown export. The solution is fully responsive, tested with Vitest, and optimized for zero-configuration deployment on Vercel.
+The frontend features drag-and-drop ingestion, 1-click sample demo documents, multi-stage progress tracking, dynamic length switching, local session history, raw text search, and multi-format exports (Markdown, Plain Text, Print/PDF). The solution is fully responsive and deployed on Vercel.
