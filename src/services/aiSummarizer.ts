@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { calculateTextMetrics, cleanExtractedText } from '@/lib/validators';
-import type { SmartInsights, SummaryLength, SummaryResult, ActionItem, ImportantDate, ImportantNumber, KeyEntity } from '@/types';
+import type { SmartInsights, SummaryLength, SummaryTone, SummaryResult, ActionItem, ImportantDate, ImportantNumber, KeyEntity } from '@/types';
 
 const CHUNK_SIZE_CHARS = 12000;
 const CHUNK_OVERLAP_CHARS = 1000;
@@ -120,8 +120,8 @@ export function extractHeuristicSmartInsights(text: string): SmartInsights {
   if (/PDF|OCR|AI|Gemini|API|TypeScript|Next\.js|React|Node\.js/i.test(text)) {
     keyEntities.push({ name: 'Document Intelligence', type: 'Technology' });
   }
-  if (/Vercel|Netlify|Google|GitHub/i.test(text)) {
-    keyEntities.push({ name: 'Hosting / Cloud Platform', type: 'Organization' });
+  if (/Vercel|Netlify|Google|GitHub|Acme|ApexCloud/i.test(text)) {
+    keyEntities.push({ name: 'Platform / Vendor', type: 'Organization' });
   }
 
   return {
@@ -144,7 +144,7 @@ export function extractHeuristicSmartInsights(text: string): SmartInsights {
 /**
  * Generates an intelligent extractive fallback summary when no AI key is configured.
  */
-function generateExtractiveFallback(text: string, length: SummaryLength): SummaryResult {
+function generateExtractiveFallback(text: string, length: SummaryLength, tone: SummaryTone = 'executive'): SummaryResult {
   const clean = cleanExtractedText(text);
   const sentences = clean
     .split(/(?<=[.?!])\s+/)
@@ -186,21 +186,32 @@ function generateExtractiveFallback(text: string, length: SummaryLength): Summar
     suggestedQuestions,
     estimatedReadTimeMinutes: metrics.estimatedReadTimeMinutes,
     requestedLength: length,
+    requestedTone: tone,
     modelUsed: 'offline-extractive-fallback',
   };
 }
 
 /**
- * Constructs prompt instructions tailored to the chosen summary length.
+ * Constructs prompt instructions tailored to the chosen summary length and tone.
  */
-function buildPrompt(text: string, length: SummaryLength): string {
+function buildPrompt(text: string, length: SummaryLength, tone: SummaryTone = 'executive'): string {
   const lengthDirectives = {
     short: 'Provide a concise, high-level summary in 1-2 focused paragraphs (approx 100-150 words). Focus only on the core purpose, primary findings, and conclusion.',
     medium: 'Provide a well-structured summary in 2-4 comprehensive paragraphs (approx 250-400 words). Cover the context, key arguments/findings, supporting evidence, and takeaways.',
     long: 'Provide an in-depth, thorough executive summary in 4-6 detailed paragraphs with logical flow (approx 500-800 words). Include all critical nuances, methodologies, results, and implications.',
   };
 
+  const toneDirectives = {
+    executive: 'Adopt an executive briefing persona: clear, strategic, outcome-oriented, and highlighting business impacts and decisions.',
+    simple: 'Adopt an ELI5 (Explain Like I am 5) plain-English persona: remove complex jargon and explain core concepts in clear, accessible language.',
+    technical: 'Adopt a senior engineering/technical persona: focus on architecture, specific methodologies, technical parameters, and constraints.',
+    student: 'Adopt an educational study-guide persona: organize findings with clear conceptual definitions and learning takeaways.',
+  };
+
   return `You are an expert document intelligence assistant. Analyze the provided text and produce an intelligent, factual, and strictly faithful analysis.
+
+PERSONA & TONE DIRECTIVE:
+${toneDirectives[tone]}
 
 RULES:
 1. Stay strictly faithful to the source document. Do NOT hallucinate or assume facts not present.
@@ -286,11 +297,12 @@ async function callGemini(prompt: string, apiKey: string): Promise<any> {
 }
 
 /**
- * Summarizes document text with length options, chunking, and smart insights.
+ * Summarizes document text with length options, tone modes, chunking, and smart insights.
  */
 export async function summarizeDocumentText(
   text: string,
-  length: SummaryLength = 'medium'
+  length: SummaryLength = 'medium',
+  tone: SummaryTone = 'executive'
 ): Promise<SummaryResult> {
   const clean = cleanExtractedText(text);
 
@@ -302,7 +314,7 @@ export async function summarizeDocumentText(
 
   if (!apiKey || apiKey === 'your_gemini_api_key_here') {
     console.warn('GEMINI_API_KEY not configured. Falling back to rule-based extractive summary.');
-    return generateExtractiveFallback(clean, length);
+    return generateExtractiveFallback(clean, length, tone);
   }
 
   try {
@@ -331,7 +343,7 @@ export async function summarizeDocumentText(
       textToSummarize = chunkSummaries.join('\n\n');
     }
 
-    const finalPrompt = buildPrompt(textToSummarize, length);
+    const finalPrompt = buildPrompt(textToSummarize, length, tone);
     const parsed = await callGemini(finalPrompt, apiKey);
 
     const summary = parsed.summary || 'Summary could not be formatted properly.';
@@ -386,11 +398,12 @@ export async function summarizeDocumentText(
       suggestedQuestions,
       estimatedReadTimeMinutes: metrics.estimatedReadTimeMinutes,
       requestedLength: length,
+      requestedTone: tone,
       modelUsed: DEFAULT_MODEL,
     };
   } catch (error: any) {
     console.error('AI summarization failed, reverting to fallback summary:', error);
-    const fallback = generateExtractiveFallback(clean, length);
+    const fallback = generateExtractiveFallback(clean, length, tone);
     fallback.modelUsed = `fallback (AI error: ${error.message || 'Unknown'})`;
     return fallback;
   }

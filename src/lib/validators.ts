@@ -83,17 +83,19 @@ export function cleanExtractedText(rawText: string): string {
 }
 
 /**
- * Calculates words and estimated character metrics.
+ * Calculates words, characters, paragraphs, and estimated reading time.
  */
 export function calculateTextMetrics(text: string) {
   const clean = cleanExtractedText(text);
   const words = clean.length > 0 ? clean.split(/\s+/).filter(Boolean).length : 0;
   const characters = clean.length;
+  const paragraphs = clean.length > 0 ? clean.split(/\n{2,}/).filter((p) => p.trim().length > 0).length : 0;
   const estimatedReadTimeMinutes = Math.max(1, Math.ceil(words / 200));
 
   return {
     wordCount: words,
     characterCount: characters,
+    paragraphCount: paragraphs,
     estimatedReadTimeMinutes,
   };
 }

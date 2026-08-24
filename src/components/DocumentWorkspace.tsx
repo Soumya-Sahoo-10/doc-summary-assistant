@@ -25,14 +25,15 @@ import {
   CheckSquare,
   Square,
   Quote,
-  ArrowRight,
-  Share2,
+  Layers,
+  Sliders,
+  UserCheck,
 } from 'lucide-react';
 import type {
   DocumentMetadata,
   SummaryLength,
+  SummaryTone,
   SummaryResult,
-  SmartInsights,
   ActionItem,
   QAMessage,
   AskDocumentResponse,
@@ -42,7 +43,7 @@ interface DocumentWorkspaceProps {
   summaryResult: SummaryResult;
   metadata?: DocumentMetadata;
   extractedText: string;
-  onReSummarize: (newLength: SummaryLength) => void;
+  onReSummarize: (newLength: SummaryLength, newTone?: SummaryTone) => void;
   isReSummarizing: boolean;
   onReset: () => void;
 }
@@ -60,13 +61,15 @@ export default function DocumentWorkspace({
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('summary');
   const [copiedSummary, setCopiedSummary] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
+  const [copiedAnswerId, setCopiedAnswerId] = useState<string | null>(null);
 
-  // Smart Insights state (allows toggling action items)
+  const selectedTone = summaryResult.requestedTone || 'executive';
+
+  // Smart Insights state (allows checking off action items)
   const [actionItems, setActionItems] = useState<ActionItem[]>(
     summaryResult.smartInsights?.actionItems || []
   );
 
-  // Synchronize action items when summaryResult updates
   useEffect(() => {
     if (summaryResult.smartInsights?.actionItems) {
       setActionItems(summaryResult.smartInsights.actionItems);
@@ -84,7 +87,7 @@ export default function DocumentWorkspace({
     {
       id: 'welcome-msg',
       role: 'assistant',
-      content: `Hello! I have analyzed **${metadata?.fileName || 'your document'}**. You can ask me any question about its contents, deadlines, numbers, or specific sections, and I will provide answers grounded directly in the text with citations.`,
+      content: `Hello! I have indexed **${metadata?.fileName || 'your document'}**. You can ask any specific question about its content, figures, decisions, or timeline, and I will provide answers strictly grounded in the document with source citations.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -152,12 +155,22 @@ export default function DocumentWorkspace({
       const errorMessage: QAMessage = {
         id: `err-${Date.now()}`,
         role: 'assistant',
-        content: `Sorry, I encountered an issue: ${err.message || 'Could not retrieve answer'}. Please try again.`,
+        content: `I encountered an issue: ${err.message || 'Could not retrieve answer'}. Please try asking again.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setQaMessages((prev) => [...prev, errorMessage]);
     } finally {
       setIsAsking(false);
+    }
+  };
+
+  const handleCopyAnswer = async (id: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedAnswerId(id);
+      setTimeout(() => setCopiedAnswerId(null), 2000);
+    } catch {
+      // ignore
     }
   };
 
@@ -167,8 +180,9 @@ export default function DocumentWorkspace({
   // Export handlers
   const handleCopySummary = async () => {
     try {
-      const textToCopy = `DOCUMENT SUMMARY (${summaryResult.requestedLength.toUpperCase()})
+      const textToCopy = `DOCUMENT INTELLIGENCE REPORT
 Document: ${metadata?.fileName || 'Uploaded Document'}
+Detail Level: ${summaryResult.requestedLength.toUpperCase()} | Tone: ${selectedTone.toUpperCase()}
 
 EXECUTIVE SUMMARY:
 ${summaryResult.summary}
@@ -176,8 +190,8 @@ ${summaryResult.summary}
 KEY POINTS & FACTS:
 ${summaryResult.keyPoints.map((kp) => `• ${kp}`).join('\n')}
 
-${summaryResult.mainIdeas?.length ? `MAIN IDEAS:\n${summaryResult.mainIdeas.map((mi) => `• ${mi}`).join('\n')}\n` : ''}
-${summaryResult.improvementSuggestions?.length ? `IMPROVEMENT SUGGESTIONS:\n${summaryResult.improvementSuggestions.map((is) => `• ${is}`).join('\n')}\n` : ''}`;
+${summaryResult.mainIdeas?.length ? `CORE THEMES:\n${summaryResult.mainIdeas.map((mi) => `• ${mi}`).join('\n')}\n` : ''}
+${summaryResult.improvementSuggestions?.length ? `ACTIONABLE TAKEAWAYS:\n${summaryResult.improvementSuggestions.map((is) => `• ${is}`).join('\n')}\n` : ''}`;
 
       await navigator.clipboard.writeText(textToCopy);
       setCopiedSummary(true);
@@ -192,7 +206,8 @@ ${summaryResult.improvementSuggestions?.length ? `IMPROVEMENT SUGGESTIONS:\n${su
 
 - **Generated**: ${new Date().toLocaleString()}
 - **Detail Level**: ${summaryResult.requestedLength.toUpperCase()}
-- **Model / Engine**: ${summaryResult.modelUsed}
+- **Tone Persona**: ${selectedTone.toUpperCase()}
+- **Engine**: ${summaryResult.modelUsed}
 - **Source Words**: ${metadata?.wordCount || 'N/A'}
 - **Reading Time**: ~${summaryResult.estimatedReadTimeMinutes} min
 
@@ -215,14 +230,14 @@ ${
 }
 ${
   summaryResult.smartInsights?.actionItems?.length
-    ? `\n## ✅ Action Items\n\n${summaryResult.smartInsights.actionItems
+    ? `\n## ✅ Action Items & Deliverables\n\n${summaryResult.smartInsights.actionItems
         .map((act) => `- [${act.completed ? 'x' : ' '}] **${act.category || 'Action'}**: ${act.text}`)
         .join('\n')}\n`
     : ''
 }
 ${
   summaryResult.smartInsights?.importantDates?.length
-    ? `\n## 📅 Important Dates\n\n${summaryResult.smartInsights.importantDates
+    ? `\n## 📅 Key Dates & Deadlines\n\n${summaryResult.smartInsights.importantDates
         .map((d) => `- **${d.date}**: ${d.description}`)
         .join('\n')}\n`
     : ''
@@ -258,7 +273,7 @@ ${
         {/* Document Info */}
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center flex-shrink-0 shadow-xs">
               <FileCheck className="w-5 h-5 text-indigo-400" />
             </div>
             <div className="min-w-0">
@@ -272,6 +287,8 @@ ${
                 </span>
                 <span>•</span>
                 <span>{metadata?.wordCount || 0} words</span>
+                <span>•</span>
+                <span>{metadata?.characterCount || 0} chars</span>
                 <span>•</span>
                 <span
                   className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md border ${
@@ -291,7 +308,7 @@ ${
         <div className="flex flex-wrap items-center gap-2">
           {/* Quick Summary Length Switcher */}
           <div className="bg-slate-100/90 p-1 rounded-xl flex items-center gap-1 border border-slate-200 text-xs">
-            <span className="text-[11px] font-bold text-slate-500 px-2 hidden sm:inline">Mode:</span>
+            <span className="text-[11px] font-bold text-slate-500 px-2 hidden sm:inline">Length:</span>
             {(['short', 'medium', 'long'] as SummaryLength[]).map((len) => (
               <button
                 key={len}
@@ -299,7 +316,7 @@ ${
                 disabled={isReSummarizing}
                 onClick={() => {
                   if (len !== summaryResult.requestedLength) {
-                    onReSummarize(len);
+                    onReSummarize(len, selectedTone);
                   }
                 }}
                 className={`px-2.5 py-1 rounded-lg font-bold capitalize transition-all ${
@@ -308,7 +325,7 @@ ${
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                {isReSummarizing && summaryResult.requestedLength === len ? 'Updating...' : len}
+                {isReSummarizing && summaryResult.requestedLength === len ? '...' : len}
               </button>
             ))}
           </div>
@@ -429,6 +446,38 @@ ${
       {/* TAB CONTENT 1: EXECUTIVE SUMMARY */}
       {activeTab === 'summary' && (
         <div className="space-y-6">
+          {/* Persona / Tone Selector */}
+          <div className="bg-slate-100/70 p-2 rounded-2xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-slate-600 px-2 font-semibold">
+              <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Explain As Persona:</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1 text-xs">
+              {(
+                [
+                  { id: 'executive', label: 'Executive' },
+                  { id: 'simple', label: 'Simple / ELI5' },
+                  { id: 'technical', label: 'Technical' },
+                  { id: 'student', label: 'Student' },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  disabled={isReSummarizing}
+                  onClick={() => onReSummarize(summaryResult.requestedLength, t.id)}
+                  className={`px-3 py-1 rounded-xl font-bold transition-all ${
+                    selectedTone === t.id
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+                  }`}
+                >
+                  {isReSummarizing && selectedTone === t.id ? 'Updating...' : t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Executive Summary Card */}
           <div className="bg-white rounded-3xl border border-slate-200/90 p-6 sm:p-8 shadow-sm">
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
@@ -436,9 +485,14 @@ ${
                 <Sparkles className="w-5 h-5 text-indigo-600" />
                 <h3 className="text-base font-bold text-slate-900">Executive Summary</h3>
               </div>
-              <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full capitalize">
-                {summaryResult.requestedLength} Format
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-full capitalize">
+                  {summaryResult.requestedLength} Format
+                </span>
+                <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full capitalize border border-indigo-200/60">
+                  {selectedTone} Tone
+                </span>
+              </div>
             </div>
             <div className="text-slate-800 text-sm sm:text-base leading-relaxed space-y-4 whitespace-pre-line">
               {summaryResult.summary}
@@ -468,7 +522,7 @@ ${
               <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
                 <Lightbulb className="w-5 h-5 text-amber-500" />
                 <h4 className="text-sm sm:text-base font-bold text-slate-900">
-                  {summaryResult.improvementSuggestions?.length ? 'Insights & Suggestions' : 'Core Themes'}
+                  {summaryResult.improvementSuggestions?.length ? 'Actionable Takeaways' : 'Core Themes'}
                 </h4>
               </div>
               <ul className="space-y-3">
@@ -497,7 +551,7 @@ ${
                 <CheckSquare className="w-5 h-5 text-indigo-600" />
                 <h3 className="text-base font-bold text-slate-900">Action Items & Deliverables</h3>
               </div>
-              <span className="text-xs text-slate-500 font-medium">Click checkbox to track status</span>
+              <span className="text-xs text-slate-500 font-medium">Click checkbox to mark complete</span>
             </div>
 
             {actionItems.length === 0 ? (
@@ -670,7 +724,7 @@ ${
                 className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
               >
                 <div
-                  className={`max-w-2xl rounded-2xl p-4 text-xs sm:text-sm leading-relaxed ${
+                  className={`max-w-2xl rounded-2xl p-4 text-xs sm:text-sm leading-relaxed relative group ${
                     msg.role === 'user'
                       ? 'bg-slate-900 text-white rounded-br-none shadow-xs'
                       : 'bg-slate-50/90 text-slate-800 border border-slate-200/90 rounded-bl-none'
@@ -693,6 +747,28 @@ ${
                           "{src}"
                         </blockquote>
                       ))}
+                    </div>
+                  )}
+
+                  {msg.role === 'assistant' && msg.id !== 'welcome-msg' && (
+                    <div className="mt-2 pt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => handleCopyAnswer(msg.id, msg.content)}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800"
+                      >
+                        {copiedAnswerId === msg.id ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-600">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copy Answer</span>
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
                 </div>
@@ -744,7 +820,7 @@ ${
             <div>
               <h3 className="text-base font-bold text-slate-900">Extracted Raw Text</h3>
               <p className="text-xs text-slate-500">
-                {metadata?.wordCount || 0} words • {metadata?.characterCount || 0} characters • Method:{' '}
+                {metadata?.wordCount || 0} words • {metadata?.characterCount || 0} characters • {metadata?.paragraphCount || 1} paragraphs • Method:{' '}
                 <span className="font-semibold text-slate-800">{metadata?.extractionMethod || 'text'}</span>
               </p>
             </div>

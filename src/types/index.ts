@@ -1,5 +1,7 @@
 export type SummaryLength = 'short' | 'medium' | 'long';
 
+export type SummaryTone = 'executive' | 'simple' | 'technical' | 'student';
+
 export type ExtractionMethod = 'pdf-native' | 'ocr-image' | 'ocr-scanned-pdf';
 
 export type ProcessingStage = 
@@ -18,6 +20,7 @@ export interface DocumentMetadata {
   pageCount?: number;
   wordCount: number;
   characterCount: number;
+  paragraphCount?: number;
   extractionMethod: ExtractionMethod;
   processedAt: string;
 }
@@ -61,6 +64,7 @@ export interface SummaryResult {
   suggestedQuestions?: string[];
   estimatedReadTimeMinutes: number;
   requestedLength: SummaryLength;
+  requestedTone?: SummaryTone;
   modelUsed: string;
 }
 
@@ -76,6 +80,7 @@ export interface ProcessDocumentResponse {
 export interface SummarizeTextRequest {
   text: string;
   length: SummaryLength;
+  tone?: SummaryTone;
   fileName?: string;
 }
 

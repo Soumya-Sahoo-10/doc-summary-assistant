@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { summarizeDocumentText } from '@/services/aiSummarizer';
-import type { SummarizeTextRequest, SummaryLength } from '@/types';
+import type { SummarizeTextRequest, SummaryLength, SummaryTone } from '@/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as SummarizeTextRequest;
-    const { text, length = 'medium' } = body;
+    const { text, length = 'medium', tone = 'executive' } = body;
 
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return NextResponse.json(
@@ -20,7 +20,10 @@ export async function POST(req: NextRequest) {
     const validLengths: SummaryLength[] = ['short', 'medium', 'long'];
     const summaryLength: SummaryLength = validLengths.includes(length) ? length : 'medium';
 
-    const summaryResult = await summarizeDocumentText(text, summaryLength);
+    const validTones: SummaryTone[] = ['executive', 'simple', 'technical', 'student'];
+    const summaryTone: SummaryTone = validTones.includes(tone) ? tone : 'executive';
+
+    const summaryResult = await summarizeDocumentText(text, summaryLength, summaryTone);
 
     return NextResponse.json({
       success: true,

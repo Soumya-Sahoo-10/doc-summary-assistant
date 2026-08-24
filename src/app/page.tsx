@@ -20,6 +20,7 @@ import type {
   ProcessDocumentResponse,
   ProcessingStage,
   SummaryLength,
+  SummaryTone,
   SummaryResult,
 } from '@/types';
 
@@ -54,18 +55,17 @@ export default function HomePage() {
     formData.append('length', summaryLength);
 
     try {
-      // Step progression
       setTimeout(() => {
         setStage((curr) => (curr === 'uploading' ? 'extracting' : curr));
-      }, 600);
+      }, 500);
 
       setTimeout(() => {
         setStage((curr) => (curr === 'extracting' ? 'analyzing' : curr));
-      }, 1600);
+      }, 1400);
 
       setTimeout(() => {
         setStage((curr) => (curr === 'analyzing' ? 'summarizing' : curr));
-      }, 2400);
+      }, 2200);
 
       const res = await fetch('/api/process-document', {
         method: 'POST',
@@ -87,7 +87,6 @@ export default function HomePage() {
       setExtractedText(text);
       setStage('completed');
 
-      // Save to local history
       if (result && meta) {
         const historyItem: DocumentHistoryItem = {
           id: `doc-${Date.now()}`,
@@ -116,9 +115,9 @@ export default function HomePage() {
     setFile(null);
 
     try {
-      setTimeout(() => setStage('extracting'), 400);
-      setTimeout(() => setStage('analyzing'), 1000);
-      setTimeout(() => setStage('summarizing'), 1600);
+      setTimeout(() => setStage('extracting'), 300);
+      setTimeout(() => setStage('analyzing'), 900);
+      setTimeout(() => setStage('summarizing'), 1500);
 
       const res = await fetch('/api/summarize-text', {
         method: 'POST',
@@ -126,6 +125,7 @@ export default function HomePage() {
         body: JSON.stringify({
           text: sample.text,
           length: summaryLength,
+          tone: 'executive',
           fileName: sample.fileName,
         }),
       });
@@ -143,6 +143,7 @@ export default function HomePage() {
         fileType: sample.fileType,
         wordCount,
         characterCount: sample.text.length,
+        paragraphCount: sample.text.split(/\n{2,}/).filter((p) => p.trim().length > 0).length,
         extractionMethod: sample.extractionMethod,
         processedAt: new Date().toISOString(),
       };
@@ -152,7 +153,6 @@ export default function HomePage() {
       setExtractedText(sample.text);
       setStage('completed');
 
-      // Save to history
       const historyItem: DocumentHistoryItem = {
         id: `sample-${Date.now()}`,
         fileName: sample.fileName,
@@ -172,7 +172,7 @@ export default function HomePage() {
     }
   };
 
-  const handleReSummarize = async (newLength: SummaryLength) => {
+  const handleReSummarize = async (newLength: SummaryLength, newTone: SummaryTone = 'executive') => {
     if (!extractedText) return;
 
     setIsReSummarizing(true);
@@ -180,7 +180,11 @@ export default function HomePage() {
       const res = await fetch('/api/summarize-text', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: extractedText, length: newLength }),
+        body: JSON.stringify({
+          text: extractedText,
+          length: newLength,
+          tone: newTone,
+        }),
       });
 
       const data = await res.json();
@@ -192,7 +196,7 @@ export default function HomePage() {
       setSummaryResult(data.summaryResult);
       setSummaryLength(newLength);
     } catch (err: any) {
-      alert(`Could not re-generate summary: ${err.message || 'Unknown error'}`);
+      alert(`Could not update analysis: ${err.message || 'Unknown error'}`);
     } finally {
       setIsReSummarizing(false);
     }
@@ -215,6 +219,7 @@ export default function HomePage() {
       fileType: item.fileType,
       wordCount: item.wordCount,
       characterCount: item.extractedText.length,
+      paragraphCount: item.extractedText.split(/\n{2,}/).filter((p) => p.trim().length > 0).length,
       extractionMethod: item.extractionMethod,
       processedAt: item.processedAt,
     });
